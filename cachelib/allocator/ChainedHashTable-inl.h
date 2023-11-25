@@ -456,7 +456,9 @@ template <typename T,
 typename T::Handle ChainedHashTable::Container<T, HookPtr, LockT>::find(
     Key key) const {
   const auto bucket = ht_.getBucket(key);
+#if 1 // tomoya-s
   auto l = locks_.lockShared(bucket);
+#endif
   return handleMaker_(ht_.findInBucket(key, bucket));
 }
 

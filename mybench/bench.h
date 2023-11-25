@@ -55,8 +55,10 @@ static inline int cache_go(Cache *cache, PoolId pool, struct request *req,
       status = cache_get(cache, pool, req);
       if (status == 1) {
         (*n_get_miss)++;
+#if 1 // tomoya-s
         (*n_set)++;
         status = cache_set(cache, pool, req);
+#endif
       }
       break;
     case op_set:
