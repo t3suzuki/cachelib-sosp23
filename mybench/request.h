@@ -52,8 +52,8 @@ static inline void free_request(struct request *request) {
 }
 
 static inline void print_req(struct request *req) {
-  printf("%d %s %s vallen %d ttl %d\n", req->timestamp, op_names[req->op],
-         req->key, req->val_len, req->ttl);
+  printf("%d %s %ld vallen %d ttl %d\n", req->timestamp, op_names[req->op],
+         *(uint64_t *)(req->key), req->val_len, req->ttl);
 }
 
 #ifdef __cplusplus
