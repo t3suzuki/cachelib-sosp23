@@ -5,7 +5,7 @@ BUILD_TYPE=RelWithDebInfo
 
 sudo apt install ninja-build >/dev/null; 
 
-clear
+
 pushd ../; 
 ./contrib/build.sh -j -v;
 # cd build-cachelib; make -j > /dev/null && make install > /dev/null;
@@ -30,9 +30,9 @@ export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib64/pkgconfig:${PKG_CONF
 LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
-rm -r _build 2>/dev/null || true
-mkdir -p _build 2>/dev/null || true
-cd _build && cmake $CMAKE_PARAMS -G Ninja .. >/dev/null
+rm -r _build2 2>/dev/null || true
+mkdir -p _build2 2>/dev/null || true
+cd _build2 && cmake $CMAKE_PARAMS -G Ninja .. >/dev/null
 
 # export GLOG_logtostderr=1
 ninja
