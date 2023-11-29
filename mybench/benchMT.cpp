@@ -18,6 +18,7 @@
 #include "bench.h"
 #include "reader.h"
 #include "request.h"
+#include "zipf.h"
 
 using namespace std;
 
@@ -49,6 +50,58 @@ static void pin_thread_to_core(int core_id) {
 #endif
 }
 
+
+#define MAX_CORE (8)
+#define THETA (0.3)
+#define N_ITEM (1024ULL*1024*1024*16)
+#define ALIGN_SIZE (64)
+class Genr {
+private:
+  struct zipf * zipf;
+public:
+  Genr(int seed) {
+    double theta = THETA;
+    char *zipf_theta_str = getenv("ZIPF_THETA");
+    if (zipf_theta_str) {
+      theta = atof(zipf_theta_str);
+    }
+    printf("Zipf theta = %f\n", theta);
+    zipf = zipf_create(N_ITEM, theta, seed);
+  }
+  inline uint64_t gen() {
+    return zipf_generate(zipf);
+  }
+};
+
+static Genr *genr[MAX_CORE];
+
+static inline std::string gen_strkey(uint64_t key) {
+  auto strkey = fmt::format_int(key).str();
+  return strkey;
+}
+
+static inline int cache_lookup(Cache *cache, uint64_t key, uint64_t &value) {
+  Cache::ReadHandle item_handle = cache->find(gen_strkey(key));
+  if (item_handle) {
+    assert(item_handle->getSize() == ALIGN_SIZE);
+    const char *data = reinterpret_cast<const char *>(item_handle->getMemory());
+    return 1; // hit
+  } else {
+    return 0; // miss
+  }
+}
+
+static inline bool cache_miss(struct bench_data *bdata, uint64_t key, uint64_t value) {
+  Cache::WriteHandle item_handle = bdata->cache->allocate(bdata->pool, gen_strkey(key), ALIGN_SIZE);
+  if (item_handle == nullptr || item_handle->getMemory() == nullptr) {
+    return 1;
+  }
+  std::memcpy(item_handle->getMemory(), &value, sizeof(uint64_t));
+  bdata->cache->insertOrReplace(item_handle);
+  return 0;
+}
+
+
 static void trace_replay_run_thread(struct bench_data *bdata,
                                     bench_opts_t *opts, int thread_id,
                                     struct thread_res *res) {
@@ -72,6 +125,7 @@ static void trace_replay_run_thread(struct bench_data *bdata,
   }
 
   LOG(INFO) << "thread " << thread_id << " start";
+#if 0
   while (read_trace(reader, req) == 0) {
     if (res->n_get % 1000 == 0 && thread_id == 1) {
         util::setCurrentTimeSec(req->timestamp);
@@ -86,7 +140,31 @@ static void trace_replay_run_thread(struct bench_data *bdata,
       res->trace_time = req->timestamp;
     }
   }
+#else
+  int t = 0;
+  while (1) {
+    //uint64_t k = genr[thread_id - 1]->gen();
+    uint64_t k = t++;
+    uint64_t v;
+    
+    if (res->n_get % 1000 == 0 && thread_id == 1) {
+        util::setCurrentTimeSec(req->timestamp);
+    }
+    
+    res->n_get++;
+    int hit = cache_lookup(bdata->cache, k, v);
+    if (hit == 0) {
+      res->n_get_miss++;
+      cache_miss(bdata, k, k);
+    }
 
+    if (res->n_get % 1000000 == 0) {
+      if (STOP_FLAG.load()) {
+        break;
+      }
+    }
+  }
+#endif
   res->trace_time = req->timestamp;
   STOP_FLAG.store(true);
   LOG(INFO) << "thread " << thread_id << " finishes";
@@ -126,6 +204,7 @@ void trace_replay_run_mt(struct bench_data *bdata, bench_opts_t *opts) {
 
   std::vector<std::thread> threads;
   for (int i = 0; i < n_thread; i++) {
+    genr[i] = new Genr(i);
     threads.push_back(
         std::thread(trace_replay_run_thread, bdata, opts, i + 1, &res[i]));
   }
