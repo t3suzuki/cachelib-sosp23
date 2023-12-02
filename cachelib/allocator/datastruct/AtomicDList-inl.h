@@ -201,6 +201,34 @@ void AtomicDList<T, HookPtr>::unlink(const T& node) noexcept {
   auto* const prev = getPrev(node);
   auto* const next = getNext(node);
 
+
+#if 1
+  T *node_p = (T *)&node;
+ if (node_p == head_) {
+    setPrev(*next, nullptr);
+    if (!head_.compare_exchange_strong(node_p, next)) {
+      auto* prev2 = getPrev(node);
+      //printf("%s %d nd=%p prev2=%p\n", __func__, __LINE__, this, prev2);
+      setPrevFrom(*next, node);
+    }
+  } else {
+    if (next != nullptr) {
+      T *prev2;
+      //printf("waiting...\n");
+      do {
+	prev2 = getPrev(node);
+      } while (prev2 == nullptr);
+      //printf("done!\n");
+      setPrev(*next, prev2);
+    }
+  }
+  if (&node == tail_) {
+    tail_ = prev;
+  }
+  if (prev != nullptr) {
+    setNextFrom(*prev, node);
+  }
+#else
   if (&node == head_) {
     head_ = next;
   }
@@ -215,7 +243,7 @@ void AtomicDList<T, HookPtr>::unlink(const T& node) noexcept {
   if (next != nullptr) {
     setPrevFrom(*next, node);
   }
-
+#endif
   size_--;
 }
 
